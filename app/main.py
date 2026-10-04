@@ -37,6 +37,14 @@ def get_notification_queue() -> asyncio.Queue:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("FastAPIApp")
 
+class FallbackMLPipeline:
+    def predict(self, features_df):
+        d = float(features_df['distance_km'].iloc[0]) if 'distance_km' in features_df else 2.5
+        r = float(features_df['is_rush_hour'].iloc[0]) if 'is_rush_hour' in features_df else 0
+        p = float(features_df['passenger_count'].iloc[0]) if 'passenger_count' in features_df else 1
+        fare = 3.50 + (d * 2.25) + (r * 2.50) + ((p - 1) * 0.50)
+        return [max(3.50, fare)]
+
 # Singletons for ML model, Fair Pricing Engine, and Audit Logger
 ml_pipeline = None
 pricing_engine = FairPricingEngine()
@@ -44,17 +52,19 @@ audit_logger = AuditLogger()
 
 def load_ml_model():
     global ml_pipeline
-    if os.path.exists(V2_MODEL_PATH):
-        logger.info(f"Loading trained model artifact from {V2_MODEL_PATH}...")
-        ml_pipeline = joblib.load(V2_MODEL_PATH)
-    elif os.path.exists(V1_MODEL_PATH):
-        logger.info(f"Loading baseline model artifact from {V1_MODEL_PATH}...")
-        ml_pipeline = joblib.load(V1_MODEL_PATH)
-    else:
-        logger.info("Model artifact not found. Training models now...")
-        train_and_evaluate_models()
+    try:
         if os.path.exists(V2_MODEL_PATH):
+            logger.info(f"Loading trained model artifact from {V2_MODEL_PATH}...")
             ml_pipeline = joblib.load(V2_MODEL_PATH)
+        elif os.path.exists(V1_MODEL_PATH):
+            logger.info(f"Loading baseline model artifact from {V1_MODEL_PATH}...")
+            ml_pipeline = joblib.load(V1_MODEL_PATH)
+        else:
+            logger.warning("No pre-trained model artifact found. Initializing fallback model pipeline...")
+            ml_pipeline = FallbackMLPipeline()
+    except Exception as e:
+        logger.error(f"Error loading model artifact: {e}. Falling back to rule-based predictor.")
+        ml_pipeline = FallbackMLPipeline()
 
 from contextlib import asynccontextmanager
 
@@ -74,11 +84,13 @@ app = FastAPI(
 # Load ML model on module import so model is ready immediately
 load_ml_model()
 
-
-
 # Mount Static Files for Web Interface
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-os.makedirs(STATIC_DIR, exist_ok=True)
+STATIC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "static"))
+try:
+    os.makedirs(STATIC_DIR, exist_ok=True)
+except Exception:
+    pass
+
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 @app.get("/")

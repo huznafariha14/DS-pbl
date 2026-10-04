@@ -7,16 +7,29 @@ from datetime import datetime
 logger = logging.getLogger("AuditLogger")
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-DB_PATH = os.path.join(DATA_DIR, "audit_log.db")
+DEFAULT_DB_PATH = os.path.join(DATA_DIR, "audit_log.db")
 
 class AuditLogger:
     """
     Immutable audit logger recording all fare calculations, ML predictions,
     fairness adjustments, rider quotes, and driver payouts for transparency and dispute resolution.
     """
-    def __init__(self, db_path=DB_PATH):
+    def __init__(self, db_path=None):
+        if db_path is None:
+            if os.environ.get("VERCEL") or os.environ.get("AWS_EXECUTION_ENV"):
+                db_path = "/tmp/audit_log.db"
+            else:
+                db_path = DEFAULT_DB_PATH
         self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        try:
+            os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Could not create DB directory {self.db_path}: {e}. Falling back to /tmp/audit_log.db")
+            self.db_path = "/tmp/audit_log.db"
+            try:
+                os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+            except Exception:
+                self.db_path = ":memory:"
         self._init_db()
 
     def _get_connection(self):
