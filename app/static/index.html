@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FairFare NYC — Taxi Fare Prediction & Two-Sided Fair Pricing Platform</title>
+  
+  <!-- Leaflet Map CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  
+  <!-- Custom Style CSS -->
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+  <!-- Driver Real-Time Notification Container (SSE-powered) -->
+  <div id="driver-notification-container" aria-live="polite" aria-label="Ride request notifications"></div>
+
+  <!-- Fare Mood Ring Widget (Novelty — Live Market Pulse) -->
+  <div id="mood-ring-widget" title="FairFare Live Market Pulse" aria-label="Market Mood Ring"></div>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">🚕</div>
+      <div>
+        <div class="brand-title">FairFare NYC</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted);">MLOps Capstone • Two-Sided Fairness Layer</div>
+      </div>
+    </div>
+    
+    <nav class="nav-tabs">
+      <button id="tab_btn_rider" class="nav-btn active" onclick="switchTab('rider')">
+        <span>👤 Rider App</span>
+      </button>
+      <button id="tab_btn_driver" class="nav-btn" onclick="switchTab('driver')">
+        <span>🚘 Driver Portal</span>
+      </button>
+      <button id="tab_btn_admin" class="nav-btn" onclick="switchTab('admin')">
+        <span>⚙️ Admin & Ops</span>
+      </button>
+    </nav>
+  </header>
+
+  <main class="container">
+
+    <!-- ==================== SURFACE 1: RIDER APP ==================== -->
+    <section id="view_rider" class="tab-content active">
+      
+      <!-- Hero Banner -->
+      <div class="glass-panel" style="background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(99, 102, 241, 0.1)); border-color: rgba(6, 182, 212, 0.3);">
+        <h1 style="font-family: var(--font-heading); font-size: 1.8rem; margin-bottom: 0.5rem; color: #fff;">
+          Transparent NYC Taxi Fare Estimates & Guaranteed Driver Protection
+        </h1>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+          Our machine learning pipeline predicts accurate base rates while our <strong>Two-Sided Fairness Layer</strong> protects riders from unbounded surge spikes and guarantees drivers a fair minimum payout floor.
+        </p>
+      </div>
+
+      <div class="grid-2">
+        
+        <!-- Left Column: Route Picker & Controls -->
+        <div>
+          <div class="glass-panel">
+            <h2 class="panel-title">📍 Select Pickup & Dropoff</h2>
+            
+            <!-- Map Container -->
+            <div id="map"></div>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem;">
+              💡 <em>Click anywhere on the NYC map to set pickup (green) and dropoff (amber) markers.</em>
+            </p>
+
+            <!-- Presets -->
+            <div class="grid-2" style="margin-top: 1rem;">
+              <div class="form-group">
+                <label class="form-label" for="preset_pickup">Quick Pickup</label>
+                <select id="preset_pickup" class="form-select">
+                  <option value="times_square" selected>Times Square, Manhattan</option>
+                  <option value="jfk">JFK International Airport</option>
+                  <option value="lga">LaGuardia Airport</option>
+                  <option value="wall_street">Wall Street</option>
+                  <option value="central_park">Central Park</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="preset_dropoff">Quick Dropoff</label>
+                <select id="preset_dropoff" class="form-select">
+                  <option value="jfk" selected>JFK International Airport</option>
+                  <option value="times_square">Times Square, Manhattan</option>
+                  <option value="lga">LaGuardia Airport</option>
+                  <option value="brooklyn_bridge">Brooklyn Bridge Park</option>
+                  <option value="wall_street">Wall Street</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Coordinate Hidden Inputs -->
+            <input type="hidden" id="pickup_lat" value="40.7589">
+            <input type="hidden" id="pickup_lon" value="-73.9851">
+            <input type="hidden" id="dropoff_lat" value="40.6413">
+            <input type="hidden" id="dropoff_lon" value="-73.7781">
+
+            <!-- Trip Inputs -->
+            <div class="grid-3" style="margin-top: 0.5rem;">
+              <div class="form-group">
+                <label class="form-label" for="passenger_count">Passengers</label>
+                <select id="passenger_count" class="form-select">
+                  <option value="1">1 Passenger</option>
+                  <option value="2">2 Passengers</option>
+                  <option value="3">3 Passengers</option>
+                  <option value="4">4 Passengers</option>
+                  <option value="5">5 Passengers (SUV)</option>
+                  <option value="6">6 Passengers (Van)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="demand_factor">Demand Level</label>
+                <select id="demand_factor" class="form-select">
+                  <option value="1.0" selected>Normal (1.0x)</option>
+                  <option value="1.4">Moderate Surge (1.4x)</option>
+                  <option value="2.2">High Demand (2.2x → Capped)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="pickup_datetime">Pickup Time</label>
+                <input type="datetime-local" id="pickup_datetime" class="form-control">
+              </div>
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" onclick="calculateFareQuote()">
+              ⚡ Calculate Transparent Fare Estimate
+            </button>
+          </div>
+        </div>
+
+        <!-- Right Column: Fare Breakdown & Explainability Card -->
+        <div>
+          <div id="quote_results_panel" class="glass-panel" style="display: none;">
+            
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+              <div>
+                <span class="badge badge-indigo" id="display_quote_id">Q-INIT</span>
+                <span id="surge_capped_badge" class="badge badge-amber" style="display: none; margin-left: 0.5rem;">🛡️ SURGE CAPPED</span>
+                <h2 style="font-family: var(--font-heading); font-size: 2.2rem; font-weight: 800; color: #fff; margin-top: 0.2rem;" id="display_total_fare">$0.00</h2>
+                <div style="font-size: 0.8rem; color: var(--text-muted);">Locked upfront fare quote</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 600;">Quote Lock Timer</div>
+                <div id="quote_timer" style="font-family: var(--font-heading); font-size: 1.4rem; font-weight: 700; color: var(--accent-emerald);">15:00</div>
+              </div>
+            </div>
+
+            <div id="surge_savings_note" class="glass-panel" style="padding: 0.75rem 1rem; background: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.3); font-size: 0.85rem; color: #fbbf24; margin-bottom: 1rem; display: none;">
+            </div>
+
+            <h3 class="panel-title" style="font-size: 1rem;">🧾 Itemized Fare Breakdown</h3>
+            <div class="breakdown-item">
+              <span style="color: var(--text-muted);">Standard Base Fare</span>
+              <span id="item_base">$2.50</span>
+            </div>
+            <div class="breakdown-item">
+              <span style="color: var(--text-muted);">Distance Component</span>
+              <span id="item_distance">$0.00</span>
+            </div>
+            <div class="breakdown-item">
+              <span style="color: var(--text-muted);">Estimated Time Component</span>
+              <span id="item_time">$0.00</span>
+            </div>
+            <div class="breakdown-item">
+              <span style="color: var(--text-muted);">Surge Multiplier</span>
+              <span id="item_surge">1.0x</span>
+            </div>
+            <div class="breakdown-item">
+              <span style="color: var(--text-muted);">Taxes & Regulatory Fees (8%)</span>
+              <span id="item_tax">$0.00</span>
+            </div>
+
+            <!-- "Why This Price?" Explainability Accordion -->
+            <div class="glass-panel" style="margin-top: 1.25rem; padding: 1rem; background: rgba(15, 23, 42, 0.7);">
+              <h3 class="panel-title" style="font-size: 0.95rem; margin-bottom: 0.5rem; color: var(--accent-cyan);">
+                🔍 Why this price? (Model Feature Contribution)
+              </h3>
+              <p id="explain_summary" style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem;"></p>
+              <div style="font-size: 0.8rem; color: var(--text-muted);">
+                • Raw ML Gradient Boosting Model Prediction: <strong id="explain_ml_pred" style="color: #fff;">$0.00</strong><br>
+                • Driver Protection Guarantee: <span id="explain_driver_floor" style="color: var(--accent-emerald);">Verified</span>
+              </div>
+            </div>
+
+            <button id="book_btn" class="btn btn-emerald" style="width: 100%; margin-top: 1rem; font-size: 1.05rem;" onclick="bookTrip()">
+              🔒 Lock Fare & Book Trip Now
+            </button>
+          </div>
+
+          <!-- Active Booking Live Tracking Card -->
+          <div id="active_booking_card" class="glass-panel" style="display: none; border-color: var(--accent-emerald);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+              <span class="badge badge-emerald" id="active_booking_status_badge">ACCEPTED</span>
+              <span style="font-size: 0.8rem; color: var(--text-muted);" id="active_booking_quote_id">Q-101</span>
+            </div>
+
+            <!-- Live Status & ETA Banner -->
+            <div class="glass-panel" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.3); padding: 0.75rem; text-align: center; margin-bottom: 1rem;">
+              <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Live Driver Status & ETA</div>
+              <div id="active_booking_phase" style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff; margin-top: 0.2rem;">
+                Driver Marco accepted! En-route to pickup
+              </div>
+            </div>
+
+            <!-- Assigned Driver Profile -->
+            <div style="display: flex; align-items: center; gap: 1rem; background: rgba(15, 23, 42, 0.6); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem;">
+              <div style="font-size: 2.2rem;">🚕</div>
+              <div style="flex: 1;">
+                <div style="font-weight: 700; color: #fff; font-size: 1rem;" id="active_driver_name">Driver Marco</div>
+                <div style="font-size: 0.8rem; color: var(--accent-cyan);" id="active_driver_vehicle">Toyota Camry • NY-TX-4829</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);" id="active_driver_rating">⭐ 4.92 • NYC TLC Licensed</div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 0.75rem; color: var(--text-muted);">Locked Fare</div>
+                <div style="font-family: var(--font-heading); font-weight: 800; font-size: 1.2rem; color: var(--accent-emerald);" id="active_rider_fare">$0.00</div>
+              </div>
+            </div>
+
+            <button class="btn btn-outline" style="width: 100%; border-color: rgba(239, 68, 68, 0.5); color: #f87171;" onclick="cancelActiveTrip()">
+              ❌ Cancel Active Trip
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== SURFACE 2: DRIVER PORTAL ==================== -->
+    <section id="view_driver" class="tab-content">
+      
+      <div class="glass-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div>
+            <h1 style="font-family: var(--font-heading); font-size: 1.6rem; color: #fff;">Driver Earnings & Fairness Dashboard</h1>
+            <div style="font-size: 0.85rem; color: var(--text-muted);">Welcome back, Driver Marco • NYC TLC Verified #48291</div>
+          </div>
+          <span class="badge badge-emerald">🟢 ONLINE & RECEIVING TRIPS</span>
+        </div>
+
+        <!-- Driver Stat Cards -->
+        <div class="grid-4">
+          <div class="stat-card emerald">
+            <div class="stat-title">Today's Total Payout</div>
+            <div id="driver_today_earnings" class="stat-value">$0.00</div>
+            <div class="stat-sub">100% Guaranteed payout</div>
+          </div>
+
+          <div class="stat-card indigo">
+            <div class="stat-title">Trips Completed</div>
+            <div id="driver_total_trips" class="stat-value">0</div>
+            <div class="stat-sub">Recorded in audit log</div>
+          </div>
+
+          <div class="stat-card amber">
+            <div class="stat-title">Min-Floor Subsidies Received</div>
+            <div id="driver_subsidies_received" class="stat-value">$0.00</div>
+            <div class="stat-sub">Platform protection paid out</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-title">Guaranteed Min Floor</div>
+            <div id="driver_min_floor" class="stat-value">$5.00</div>
+            <div class="stat-sub">Per trip floor protection</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Incoming Ride Request Accept/Decline Dispatch Queue -->
+      <div id="driver_dispatch_queue" class="glass-panel" style="display: none; border-color: var(--accent-amber); background: linear-gradient(135deg, rgba(245, 158, 11, 0.1), rgba(15, 23, 42, 0.8));">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h2 class="panel-title" style="margin-bottom: 0; color: var(--accent-amber);">⚡ Incoming Booking Request</h2>
+          <span class="badge badge-amber">ACTION REQUIRED</span>
+        </div>
+        
+        <div id="driver_pending_cards_container">
+          <!-- Dynamically populated by driver.js -->
+        </div>
+      </div>
+
+      <!-- Active Navigation Mode Card -->
+      <div id="driver_active_ride_card" class="glass-panel" style="display: none; border-color: var(--accent-emerald);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+          <h2 class="panel-title" style="margin-bottom: 0; color: var(--accent-emerald);">🗺️ Active Trip Navigation</h2>
+          <span class="badge badge-emerald" id="driver_active_status_badge">ACCEPTED</span>
+        </div>
+
+        <div class="grid-2" style="margin-bottom: 1rem;">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Assigned Quote ID</div>
+            <div style="font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: #fff;" id="driver_active_quote_id">Q-101</div>
+            <div style="font-size: 0.85rem; color: var(--text-main); margin-top: 0.3rem;" id="driver_active_route_info">Times Square ➔ JFK Airport</div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 0.8rem; color: var(--text-muted);">Guaranteed Driver Payout</div>
+            <div style="font-family: var(--font-heading); font-size: 1.6rem; font-weight: 800; color: var(--accent-emerald);" id="driver_active_payout">$0.00</div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button class="btn btn-primary" id="btn_driver_transit" style="flex: 1;" onclick="setDriverTripProgress('IN_TRANSIT')">
+            🚖 Start Trip (Picked Up Rider)
+          </button>
+          <button class="btn btn-emerald" id="btn_driver_complete" style="flex: 1;" onclick="setDriverTripProgress('COMPLETED')">
+            🏁 Complete Trip & Collect Payout
+          </button>
+        </div>
+      </div>
+
+      <!-- Driver Trip History Table -->
+      <div class="glass-panel">
+        <h2 class="panel-title">📋 Today's Trip Payout Breakdown</h2>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Quote ID</th>
+                <th>Time</th>
+                <th>Distance</th>
+                <th>Rider Paid</th>
+                <th>Driver Payout</th>
+                <th>Fairness Guarantee</th>
+              </tr>
+            </thead>
+            <tbody id="driver_trips_table_body">
+              <!-- Rendered dynamically by driver.js -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ==================== SURFACE 3: ADMIN & OPS CONTROL ==================== -->
+    <section id="view_admin" class="tab-content">
+      
+      <div class="glass-panel">
+        <h1 style="font-family: var(--font-heading); font-size: 1.6rem; color: #fff; margin-bottom: 0.5rem;">
+          MLOps Model Monitoring & Dynamic Policy Controls
+        </h1>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">
+          Monitor machine learning pipeline performance (MAE / RMSE / R²), inspect real-time drift, and dynamically adjust fair pricing policy parameters.
+        </div>
+      </div>
+
+      <!-- System Stat Cards -->
+      <div class="grid-4" style="margin-bottom: 1.5rem;">
+        <div class="stat-card">
+          <div class="stat-title">Total Quotes Generated</div>
+          <div id="admin_total_quotes" class="stat-value">0</div>
+          <div class="stat-sub">Audit logged calculations</div>
+        </div>
+
+        <div class="stat-card amber">
+          <div class="stat-title">Surge Capped Quotes</div>
+          <div id="admin_surge_capped_pct" class="stat-value">0%</div>
+          <div class="stat-sub">Rider protection active</div>
+        </div>
+
+        <div class="stat-card emerald">
+          <div class="stat-title">Min-Floor Protected</div>
+          <div id="admin_min_floor_pct" class="stat-value">0%</div>
+          <div class="stat-sub">Driver floor enforced</div>
+        </div>
+
+        <div class="stat-card indigo">
+          <div class="stat-title">Model Drift Status</div>
+          <div id="admin_drift_status" class="stat-value" style="font-size: 1.2rem;">HEALTHY</div>
+          <div class="stat-sub">MAE monitored on live traffic</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        
+        <!-- Left: Model Performance Benchmarks -->
+        <div class="glass-panel">
+          <h2 class="panel-title">🤖 Model Performance Benchmark Comparison</h2>
+          <div class="table-responsive">
+            <table class="custom-table">
+              <thead>
+                <tr>
+                  <th>Model Version</th>
+                  <th>MAE ($)</th>
+                  <th>RMSE ($)</th>
+                  <th>R² Score</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="admin_models_table_body">
+                <!-- Rendered dynamically -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right: Dynamic Fairness Parameter Controls -->
+        <div class="glass-panel">
+          <h2 class="panel-title">🎛️ Dynamic Policy Controls</h2>
+          
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" for="cfg_max_surge">Hard Surge Multiplier Cap</label>
+              <span id="val_max_surge" style="font-weight: 700; color: var(--accent-amber);">1.8x</span>
+            </div>
+            <input type="range" id="cfg_max_surge" min="1.0" max="3.0" step="0.1" value="1.8" class="form-control" oninput="document.getElementById('val_max_surge').textContent = this.value + 'x'">
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" for="cfg_min_floor">Driver Guaranteed Min Floor ($)</label>
+              <span id="val_min_floor" style="font-weight: 700; color: var(--accent-emerald);">$5.00</span>
+            </div>
+            <input type="range" id="cfg_min_floor" min="2.0" max="15.0" step="0.5" value="5.0" class="form-control" oninput="document.getElementById('val_min_floor').textContent = '$' + parseFloat(this.value).toFixed(2)">
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" for="cfg_base_fare">Base Fare ($)</label>
+              <span id="val_base_fare" style="font-weight: 700; color: var(--accent-cyan);">$2.50</span>
+            </div>
+            <input type="range" id="cfg_base_fare" min="1.0" max="10.0" step="0.25" value="2.5" class="form-control" oninput="document.getElementById('val_base_fare').textContent = '$' + parseFloat(this.value).toFixed(2)">
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between;">
+              <label class="form-label" for="cfg_driver_split">Driver Revenue Split (%)</label>
+              <span id="val_driver_split" style="font-weight: 700; color: var(--accent-indigo);">80%</span>
+            </div>
+            <input type="range" id="cfg_driver_split" min="50" max="95" step="1" value="80" class="form-control" oninput="document.getElementById('val_driver_split').textContent = this.value + '%'">
+          </div>
+
+          <button class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" onclick="saveAdminConfig()">
+            💾 Apply Policy Changes Live
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Peak Hours Analytics Panel -->
+      <div class="glass-panel" style="margin-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+          <h2 class="panel-title" style="margin-bottom: 0;">📈 Peak Hours Rate Analytics &amp; Demand Heatmap</h2>
+          <button class="btn btn-primary" style="padding: 0.5rem 1rem; font-size:0.85rem;" onclick="fetchPeakHoursAnalytics()">
+            🔄 Refresh
+          </button>
+        </div>
+        <div id="peak_hours_panel">
+          <div style="text-align:center;color:var(--text-muted);padding:2rem;">Loading peak hours data…</div>
+        </div>
+      </div>
+
+      <!-- Immutable Audit Log Inspector -->
+
+      <div class="glass-panel" style="margin-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h2 class="panel-title" style="margin-bottom: 0;">📜 Immutable Fare Calculation Audit Logs</h2>
+          <input type="text" id="audit_search_input" placeholder="Search by Quote ID or status..." class="form-control" style="width: 250px;" onkeyup="fetchAuditLogs(this.value)">
+        </div>
+
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Quote ID</th>
+                <th>Time</th>
+                <th>ML Pred</th>
+                <th>Applied Surge</th>
+                <th>Rider Fare</th>
+                <th>Driver Payout</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="audit_logs_table_body">
+              <!-- Rendered dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- Leaflet Map JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Custom JS Modules -->
+  <script src="/static/js/map.js"></script>
+  <script src="/static/js/rider.js"></script>
+  <script src="/static/js/driver.js"></script>
+  <script src="/static/js/admin.js"></script>
+  <script src="/static/js/moodring.js"></script>
+  <script src="/static/js/app.js"></script>
+
+  <script>
+    // Initialize Mood Ring after DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+      initMoodRingWidget();
+    });
+  </script>
+</body>
+</html>

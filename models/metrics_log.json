@@ -1,0 +1,52 @@
+{
+  "linear_regression_v1": {
+    "version": "v1-baseline-lr",
+    "mae": 1.1003,
+    "rmse": 1.3719,
+    "r2": 0.9116,
+    "features_used": [
+      "distance_km",
+      "passenger_count",
+      "hour",
+      "day_of_week",
+      "month",
+      "is_weekend",
+      "is_rush_hour"
+    ]
+  },
+  "random_forest_v1": {
+    "version": "v1-baseline-rf",
+    "mae": 0.983,
+    "rmse": 1.2291,
+    "r2": 0.9291,
+    "features_used": [
+      "distance_km",
+      "passenger_count",
+      "hour",
+      "day_of_week",
+      "month",
+      "is_weekend",
+      "is_rush_hour"
+    ]
+  },
+  "gradient_boosting_v2": {
+    "version": "v2-gradient-boosting",
+    "mae": 0.9663,
+    "rmse": 1.209,
+    "r2": 0.9314,
+    "features_used": [
+      "distance_km",
+      "passenger_count",
+      "hour",
+      "day_of_week",
+      "month",
+      "is_weekend",
+      "is_rush_hour"
+    ],
+    "params": {
+      "max_iter": 150,
+      "max_depth": 8,
+      "learning_rate": 0.08
+    }
+  }
+}

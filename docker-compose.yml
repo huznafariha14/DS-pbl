@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - PORT=8000
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    restart: always
