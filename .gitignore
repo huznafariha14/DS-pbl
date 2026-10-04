@@ -12,3 +12,4 @@ ENV/
 .vercel/
 *.sqlite3
 *.db
+.vercel

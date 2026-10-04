@@ -1,0 +1,8 @@
+data/
+models/model_v1_baseline.joblib
+tests/
+Dockerfile
+docker-compose.yml
+review_3_presentation.md
+.pytest_cache/
+.git/
